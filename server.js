@@ -1,38 +1,24 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-require('dotenv').config(); // <-- dotenv load
+require('dotenv').config();
 
-const User = require('./models/User');
+const userRoutes = require('./routes/userRoutes');
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
-const mongoUri = process.env.MONGO_URI;
-const PORT = process.env.PORT || 5000;
-
+// MongoDB Connection
 mongoose
-  .connect(mongoUri)
+  .connect(process.env.MONGO_URI)
   .then(() => console.log('✅ MongoDB Connected'))
-  .catch(err => console.log('❌ Mongo Error: ', err));
+  .catch(err => console.error('❌ Mongo Error:', err));
 
 // Routes
-app.post('/api/users', async (req, res) => {
-  try {
-    const newUser = new User(req.body);
-    await newUser.save();
-    res.json({ message: '✅ User registered successfully!' });
-  } catch (error) {
-    res.status(500).json({ message: '❌ Error saving user', error });
-  }
-});
+app.use('/api/users', userRoutes);
 
-app.get('/api/users', async (req, res) => {
-  const users = await User.find();
-  res.json(users);
-});
-
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () =>
-  console.log(`🚀 Server running at http://localhost:${PORT}`)
+  console.log(`🚀 Server running on http://localhost:${PORT}`)
 );
