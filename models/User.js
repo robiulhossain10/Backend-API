@@ -19,6 +19,15 @@ const UserSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Password is required'],
     },
+    role: {
+      type: String,
+      enum: ['user', 'admin'],
+      default: 'user',
+    },
+    isActive: {
+      type: Boolean,
+      default: true, // ✅ Default true
+    },
   },
   {
     timestamps: true, // createdAt, updatedAt automatically
