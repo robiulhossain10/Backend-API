@@ -21,17 +21,17 @@ const UserSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['user', 'admin'],
-      default: 'user',
+      enum: ['user', 'admin'], // শুধু এই দুই role allow করবে
+      default: 'user', // default হবে "user"
     },
     isActive: {
       type: Boolean,
-      default: true, // ✅ Default true
+      default: true,
     },
   },
   {
-    timestamps: true, // createdAt, updatedAt automatically
-    versionKey: false, // remove __v field
+    timestamps: true,
+    versionKey: false,
   }
 );
 
@@ -42,5 +42,4 @@ UserSchema.methods.toJSON = function () {
   return obj;
 };
 
-// Export User model
 module.exports = mongoose.model('User', UserSchema);
