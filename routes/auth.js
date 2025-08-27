@@ -11,7 +11,7 @@ const generateToken = userId =>
 // -------------------- REGISTER --------------------
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, role } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'All fields are required' });
@@ -23,13 +23,19 @@ router.post('/register', async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await User.create({ name, email, password: hashedPassword });
+
+    const user = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+      role: role || 'user', // 👉 যদি role পাঠাও admin হবে, না হলে default "user"
+    });
 
     const token = generateToken(user._id);
 
     res.status(201).json({
       token,
-      user: user, // ✅ thanks to UserSchema.toJSON, password hidden
+      user, // thanks to UserSchema.toJSON, password hidden
     });
   } catch (err) {
     console.error('Register error:', err.message);
@@ -59,7 +65,7 @@ router.post('/login', async (req, res) => {
 
     res.json({
       token,
-      user: user, // ✅ password hidden automatically
+      user, // password hidden automatically
     });
   } catch (err) {
     console.error('Login error:', err.message);
