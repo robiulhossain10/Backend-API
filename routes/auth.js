@@ -42,9 +42,9 @@ router.post('/register', async (req, res) => {
 
     refreshTokens.push(refreshToken);
 
-    res.status(201).json({
+    // 👉 refreshToken header এ পাঠাচ্ছি
+    res.header('x-refresh-token', refreshToken).status(201).json({
       token,
-      refreshToken,
       user,
     });
   } catch (err) {
@@ -76,9 +76,9 @@ router.post('/login', async (req, res) => {
 
     refreshTokens.push(refreshToken);
 
-    res.json({
+    // 👉 refreshToken header এ পাঠাচ্ছি
+    res.header('x-refresh-token', refreshToken).json({
       token,
-      refreshToken,
       user,
     });
   } catch (err) {
@@ -89,7 +89,8 @@ router.post('/login', async (req, res) => {
 
 // -------------------- REFRESH TOKEN --------------------
 router.post('/refresh', (req, res) => {
-  const { refreshToken } = req.body;
+  // header থেকে নেওয়া
+  const refreshToken = req.header('x-refresh-token');
   if (!refreshToken)
     return res.status(401).json({ message: 'Refresh token required' });
 
@@ -106,7 +107,7 @@ router.post('/refresh', (req, res) => {
 
 // -------------------- LOGOUT --------------------
 router.post('/logout', (req, res) => {
-  const { refreshToken } = req.body;
+  const refreshToken = req.header('x-refresh-token');
   refreshTokens = refreshTokens.filter(t => t !== refreshToken);
   res.json({ message: 'Logged out successfully' });
 });

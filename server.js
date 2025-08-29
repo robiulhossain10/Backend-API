@@ -35,14 +35,11 @@ app.get('/', (req, res) => {
 
 // ---------------- Database ----------------
 mongoose
-  .connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+  .connect(process.env.MONGO_URI)
   .then(() => console.log('✅ MongoDB connected'))
   .catch(err => {
     console.error('❌ Mongo connection error:', err);
-    process.exit(1); // fatal error হলে সার্ভার বন্ধ হবে
+    process.exit(1);
   });
 
 // ---------------- Server ----------------
