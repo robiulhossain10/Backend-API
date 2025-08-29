@@ -11,22 +11,19 @@ const generateAccessToken = userId =>
 const generateRefreshToken = userId =>
   jwt.sign({ id: userId }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
 
-// In-memory refresh token store (⚠️ production এ DB/Redis ব্যবহার করবেন)
+// In-memory refresh token store (production এ DB/Redis ব্যবহার করা উচিত)
 let refreshTokens = [];
 
 // -------------------- REGISTER --------------------
 router.post('/register', async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
-
-    if (!name || !email || !password) {
+    if (!name || !email || !password)
       return res.status(400).json({ message: 'All fields are required' });
-    }
 
     const existingUser = await User.findOne({ email });
-    if (existingUser) {
+    if (existingUser)
       return res.status(400).json({ message: 'User already exists' });
-    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -42,8 +39,7 @@ router.post('/register', async (req, res) => {
 
     refreshTokens.push(refreshToken);
 
-    // 👉 header + body দুটোতেই পাঠাচ্ছি
-    res.header('x-refresh-token', refreshToken).status(201).json({
+    res.status(201).json({
       token,
       refreshToken,
       user,
@@ -58,12 +54,10 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    if (!email || !password) {
+    if (!email || !password)
       return res
         .status(400)
         .json({ message: 'Email and password are required' });
-    }
 
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: 'Invalid credentials' });
@@ -77,8 +71,7 @@ router.post('/login', async (req, res) => {
 
     refreshTokens.push(refreshToken);
 
-    // 👉 header + body দুটোতেই পাঠাচ্ছি
-    res.header('x-refresh-token', refreshToken).json({
+    res.json({
       token,
       refreshToken,
       user,
@@ -91,8 +84,7 @@ router.post('/login', async (req, res) => {
 
 // -------------------- REFRESH TOKEN --------------------
 router.post('/refresh', (req, res) => {
-  // header থেকে নেওয়া
-  const refreshToken = req.header('x-refresh-token') || req.body.refreshToken;
+  const { refreshToken } = req.body; // body থেকে নেওয়া
   if (!refreshToken)
     return res.status(401).json({ message: 'Refresh token required' });
 
@@ -103,13 +95,22 @@ router.post('/refresh', (req, res) => {
     if (err) return res.status(403).json({ message: 'Invalid refresh token' });
 
     const newAccessToken = generateAccessToken(decoded.id);
-    res.json({ token: newAccessToken });
+    const newRefreshToken = generateRefreshToken(decoded.id);
+
+    // পুরানো refresh token replace
+    refreshTokens = refreshTokens.filter(t => t !== refreshToken);
+    refreshTokens.push(newRefreshToken);
+
+    res.json({
+      token: newAccessToken,
+      refreshToken: newRefreshToken,
+    });
   });
 });
 
 // -------------------- LOGOUT --------------------
 router.post('/logout', (req, res) => {
-  const refreshToken = req.header('x-refresh-token') || req.body.refreshToken;
+  const { refreshToken } = req.body;
   refreshTokens = refreshTokens.filter(t => t !== refreshToken);
   res.json({ message: 'Logged out successfully' });
 });
