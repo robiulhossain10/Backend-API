@@ -5,9 +5,12 @@ const auth = require('../middleware/auth');
 const bcrypt = require('bcryptjs');
 
 // -------------------- Get all users (protected) --------------------
-router.get('/', auth, async (req, res) => {
+router.get('/', auth(), async (req, res) => {
   try {
     const users = await User.find().select('-password'); // remove passwords
+    if (!users || users.length === 0) {
+      return res.status(404).json({ message: 'No users found' });
+    }
     res.json(users);
   } catch (err) {
     console.error('Get users error:', err.message);
@@ -16,8 +19,13 @@ router.get('/', auth, async (req, res) => {
 });
 
 // -------------------- Get logged-in user's profile --------------------
-router.get('/me', auth, async (req, res) => {
+router.get('/me', auth(), async (req, res) => {
   try {
+    console.log('REQ USER:', req.user); // debug
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ message: 'Unauthorized: No user id' });
+    }
+
     const user = await User.findById(req.user.id).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
@@ -28,16 +36,18 @@ router.get('/me', auth, async (req, res) => {
 });
 
 // -------------------- Update logged-in user's profile --------------------
-router.put('/me', auth, async (req, res) => {
+router.put('/me', auth(), async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // validation
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ message: 'Unauthorized: No user id' });
+    }
+
     if (!name || !email) {
       return res.status(400).json({ message: 'Name and email are required' });
     }
 
-    // email uniqueness check
     const existingUser = await User.findOne({
       email,
       _id: { $ne: req.user.id },
@@ -47,7 +57,6 @@ router.put('/me', auth, async (req, res) => {
     }
 
     const updateData = { name, email };
-
     if (password && password.trim() !== '') {
       const salt = await bcrypt.genSalt(10);
       updateData.password = await bcrypt.hash(password, salt);
@@ -68,7 +77,7 @@ router.put('/me', auth, async (req, res) => {
 });
 
 // -------------------- Get user by ID --------------------
-router.get('/:id', auth, async (req, res) => {
+router.get('/:id', auth(), async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -80,7 +89,7 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // -------------------- Update user by ID --------------------
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', auth(), async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
@@ -88,7 +97,6 @@ router.put('/:id', auth, async (req, res) => {
       return res.status(400).json({ message: 'Name and email are required' });
     }
 
-    // অন্য ইউজারের সাথে email conflict আছে কিনা
     const existingUser = await User.findOne({
       email,
       _id: { $ne: req.params.id },
@@ -98,7 +106,6 @@ router.put('/:id', auth, async (req, res) => {
     }
 
     const updateData = { name, email };
-
     if (password && password.trim() !== '') {
       const salt = await bcrypt.genSalt(10);
       updateData.password = await bcrypt.hash(password, salt);
@@ -119,11 +126,10 @@ router.put('/:id', auth, async (req, res) => {
 });
 
 // -------------------- Delete user by ID --------------------
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', auth(), async (req, res) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
-
     res.json({ message: 'User deleted successfully' });
   } catch (err) {
     console.error('Delete user error:', err.message);
