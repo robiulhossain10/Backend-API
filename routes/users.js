@@ -31,6 +31,21 @@ router.get('/me', auth, async (req, res) => {
 router.put('/me', auth, async (req, res) => {
   try {
     const { name, email, password } = req.body;
+
+    // validation
+    if (!name || !email) {
+      return res.status(400).json({ message: 'Name and email are required' });
+    }
+
+    // email uniqueness check
+    const existingUser = await User.findOne({
+      email,
+      _id: { $ne: req.user.id },
+    });
+    if (existingUser) {
+      return res.status(400).json({ message: 'Email already in use' });
+    }
+
     const updateData = { name, email };
 
     if (password && password.trim() !== '') {
@@ -40,6 +55,7 @@ router.put('/me', auth, async (req, res) => {
 
     const user = await User.findByIdAndUpdate(req.user.id, updateData, {
       new: true,
+      runValidators: true,
       select: '-password',
     });
 
@@ -67,6 +83,20 @@ router.get('/:id', auth, async (req, res) => {
 router.put('/:id', auth, async (req, res) => {
   try {
     const { name, email, password } = req.body;
+
+    if (!name || !email) {
+      return res.status(400).json({ message: 'Name and email are required' });
+    }
+
+    // অন্য ইউজারের সাথে email conflict আছে কিনা
+    const existingUser = await User.findOne({
+      email,
+      _id: { $ne: req.params.id },
+    });
+    if (existingUser) {
+      return res.status(400).json({ message: 'Email already in use' });
+    }
+
     const updateData = { name, email };
 
     if (password && password.trim() !== '') {
@@ -76,6 +106,7 @@ router.put('/:id', auth, async (req, res) => {
 
     const user = await User.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
+      runValidators: true,
       select: '-password',
     });
 
@@ -99,6 +130,5 @@ router.delete('/:id', auth, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-
 
 module.exports = router;
