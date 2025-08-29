@@ -4,9 +4,15 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-// JWT token generate helper
-const generateToken = userId =>
+// ---------------- TOKEN HELPERS ----------------
+const generateAccessToken = userId =>
   jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+const generateRefreshToken = userId =>
+  jwt.sign({ id: userId }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
+
+// In-memory refresh token store (production এ DB/Redis ব্যবহার করা উচিত)
+let refreshTokens = [];
 
 // -------------------- REGISTER --------------------
 router.post('/register', async (req, res) => {
@@ -28,14 +34,18 @@ router.post('/register', async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      role: role || 'user', // 👉 যদি role পাঠাও admin হবে, না হলে default "user"
+      role: role || 'user',
     });
 
-    const token = generateToken(user._id);
+    const token = generateAccessToken(user._id);
+    const refreshToken = generateRefreshToken(user._id);
+
+    refreshTokens.push(refreshToken);
 
     res.status(201).json({
       token,
-      user, // thanks to UserSchema.toJSON, password hidden
+      refreshToken,
+      user,
     });
   } catch (err) {
     console.error('Register error:', err.message);
@@ -61,16 +71,44 @@ router.post('/login', async (req, res) => {
     if (!isMatch)
       return res.status(400).json({ message: 'Invalid credentials' });
 
-    const token = generateToken(user._id);
+    const token = generateAccessToken(user._id);
+    const refreshToken = generateRefreshToken(user._id);
+
+    refreshTokens.push(refreshToken);
 
     res.json({
       token,
-      user, // password hidden automatically
+      refreshToken,
+      user,
     });
   } catch (err) {
     console.error('Login error:', err.message);
     res.status(500).json({ message: 'Server error' });
   }
+});
+
+// -------------------- REFRESH TOKEN --------------------
+router.post('/refresh', (req, res) => {
+  const { refreshToken } = req.body;
+  if (!refreshToken)
+    return res.status(401).json({ message: 'Refresh token required' });
+
+  if (!refreshTokens.includes(refreshToken))
+    return res.status(403).json({ message: 'Invalid refresh token' });
+
+  jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET, (err, decoded) => {
+    if (err) return res.status(403).json({ message: 'Invalid refresh token' });
+
+    const newAccessToken = generateAccessToken(decoded.id);
+    res.json({ token: newAccessToken });
+  });
+});
+
+// -------------------- LOGOUT --------------------
+router.post('/logout', (req, res) => {
+  const { refreshToken } = req.body;
+  refreshTokens = refreshTokens.filter(t => t !== refreshToken);
+  res.json({ message: 'Logged out successfully' });
 });
 
 module.exports = router;
