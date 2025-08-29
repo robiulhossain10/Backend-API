@@ -1,27 +1,33 @@
-// Load environment variables
+// ---------------- Load environment variables ----------------
 require('dotenv').config();
 
-// Import dependencies
+// ---------------- Import dependencies ----------------
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const morgan = require('morgan');
 
-// Import routes
+// ---------------- Import routes ----------------
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 
-// Initialize app
+// ---------------- Initialize app ----------------
 const app = express();
 
 // ---------------- Middleware ----------------
+
+// CORS setup
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || '*', // 👉 নিরাপত্তার জন্য frontend URL সেট করা ভালো
+    origin: process.env.CLIENT_URL || '*', // নিরাপদে frontend URL ব্যবহার করুন
     credentials: true,
   })
 );
+
+// JSON parser
 app.use(express.json());
+
+// HTTP logger
 app.use(morgan('dev'));
 
 // ---------------- Routes ----------------
@@ -33,7 +39,7 @@ app.get('/', (req, res) => {
   res.json({ message: '✅ API is running...' });
 });
 
-// ---------------- Database ----------------
+// ---------------- Database connection ----------------
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log('✅ MongoDB connected'))
@@ -41,6 +47,7 @@ mongoose
     console.error('❌ Mongo connection error:', err);
     process.exit(1);
   });
+
 
 // ---------------- Server ----------------
 const PORT = process.env.PORT || 5000;
