@@ -84,7 +84,8 @@ router.post('/login', async (req, res) => {
 
 // -------------------- REFRESH TOKEN --------------------
 router.post('/refresh', (req, res) => {
-  const { refreshToken } = req.body; // body থেকে নেওয়া
+  // header থেকে নেওয়া
+  const refreshToken = req.header('x-refresh-token');
   if (!refreshToken)
     return res.status(401).json({ message: 'Refresh token required' });
 
@@ -107,6 +108,7 @@ router.post('/refresh', (req, res) => {
     });
   });
 });
+
 
 // -------------------- LOGOUT --------------------
 router.post('/logout', (req, res) => {
