@@ -3,6 +3,8 @@ const router = express.Router();
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 
 // ---------------- TOKEN HELPERS ----------------
 const generateAccessToken = userId =>
@@ -13,6 +15,16 @@ const generateRefreshToken = userId =>
 
 // In-memory refresh token store (production এ DB/Redis ব্যবহার করা উচিত)
 let refreshTokens = [];
+
+// ---------------- Nodemailer Transporter ----------------
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: parseInt(process.env.SMTP_PORT) || 587,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
 
 // -------------------- REGISTER --------------------
 router.post('/register', async (req, res) => {
@@ -84,7 +96,6 @@ router.post('/login', async (req, res) => {
 
 // -------------------- REFRESH TOKEN --------------------
 router.post('/refresh', (req, res) => {
-  // header থেকে নেওয়া
   const refreshToken = req.header('x-refresh-token');
   if (!refreshToken)
     return res.status(401).json({ message: 'Refresh token required' });
@@ -98,7 +109,6 @@ router.post('/refresh', (req, res) => {
     const newAccessToken = generateAccessToken(decoded.id);
     const newRefreshToken = generateRefreshToken(decoded.id);
 
-    // পুরানো refresh token replace
     refreshTokens = refreshTokens.filter(t => t !== refreshToken);
     refreshTokens.push(newRefreshToken);
 
@@ -109,12 +119,69 @@ router.post('/refresh', (req, res) => {
   });
 });
 
-
 // -------------------- LOGOUT --------------------
 router.post('/logout', (req, res) => {
   const { refreshToken } = req.body;
   refreshTokens = refreshTokens.filter(t => t !== refreshToken);
   res.json({ message: 'Logged out successfully' });
+});
+
+// -------------------- FORGOT PASSWORD --------------------
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ message: 'Email is required' });
+
+  const user = await User.findOne({ email });
+  if (!user) return res.status(404).json({ message: 'User not found' });
+
+  // Random token generate
+  const resetToken = crypto.randomBytes(20).toString('hex');
+  user.resetPasswordToken = resetToken;
+  user.resetPasswordExpire = Date.now() + 3600000; // 1 hour
+  await user.save();
+
+  const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+
+  const message = `
+    <h3>Password Reset Request</h3>
+    <p>Click the link below to reset your password:</p>
+    <a href="${resetUrl}">${resetUrl}</a>
+    <p>This link will expire in 1 hour.</p>
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_USER,
+      to: user.email,
+      subject: 'Password Reset',
+      html: message,
+    });
+    res.json({ message: 'Password reset link sent to your email' });
+  } catch (err) {
+    console.error('Forgot password email error:', err);
+    res.status(500).json({ message: 'Email could not be sent' });
+  }
+});
+
+// -------------------- RESET PASSWORD --------------------
+router.post('/reset-password/:token', async (req, res) => {
+  const { token } = req.params;
+  const { password } = req.body;
+
+  const user = await User.findOne({
+    resetPasswordToken: token,
+    resetPasswordExpire: { $gt: Date.now() },
+  });
+
+  if (!user)
+    return res.status(400).json({ message: 'Invalid or expired token' });
+
+  user.password = await bcrypt.hash(password, 10);
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpire = undefined;
+
+  await user.save();
+  res.json({ message: 'Password reset successful' });
 });
 
 module.exports = router;
