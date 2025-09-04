@@ -26,7 +26,15 @@ const UserSchema = new mongoose.Schema(
     },
     isActive: {
       type: Boolean,
-      default: true,
+      default: false, // register করার পর OTP verify না করলে false
+    },
+
+    // ---------------- OTP Verification Fields ----------------
+    otp: {
+      type: String,
+    },
+    otpExpire: {
+      type: Date,
     },
 
     // ---------------- Forgot Password Fields ----------------
@@ -47,6 +55,8 @@ const UserSchema = new mongoose.Schema(
 UserSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.password;
+  delete obj.otp; // OTP hide
+  delete obj.otpExpire; // OTP expire hide
   return obj;
 };
 

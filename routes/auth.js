@@ -26,7 +26,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// -------------------- REGISTER --------------------
+// -------------------- REGISTER WITH OTP --------------------
 router.post('/register', async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
@@ -39,25 +39,83 @@ router.post('/register', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
+
     const user = await User.create({
       name,
       email,
       password: hashedPassword,
       role: role || 'user',
+      isActive: false, // OTP verification required
+      otp,
+      otpExpire,
     });
 
-    const token = generateAccessToken(user._id);
-    const refreshToken = generateRefreshToken(user._id);
+    // Send OTP email
+    const message = `
+      <h3>OTP Verification</h3>
+      <p>Your OTP for account verification is: <b>${otp}</b></p>
+      <p>It will expire in 10 minutes.</p>
+    `;
 
-    refreshTokens.push(refreshToken);
+    await transporter.sendMail({
+      from: process.env.SMTP_USER,
+      to: user.email,
+      subject: 'OTP Verification',
+      html: message,
+    });
 
     res.status(201).json({
+      message: 'OTP sent to your email. Verify to activate account.',
+      email: user.email,
+    });
+  } catch (err) {
+    console.error('Register error:', err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// -------------------- VERIFY OTP --------------------
+router.post('/verify-otp', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ message: 'Email and OTP required' });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (user.isActive)
+      return res.status(400).json({ message: 'User already verified' });
+
+    if (user.otp !== otp)
+      return res.status(400).json({ message: 'Invalid OTP' });
+    if (user.otpExpire < Date.now())
+      return res.status(400).json({ message: 'OTP expired' });
+
+    // OTP valid, activate user
+    user.isActive = true;
+    user.otp = undefined;
+    user.otpExpire = undefined;
+    await user.save();
+
+    // Generate tokens
+    const token = generateAccessToken(user._id);
+    const refreshToken = generateRefreshToken(user._id);
+    refreshTokens.push(refreshToken);
+
+    res.json({
+      message: 'Account verified successfully',
       token,
       refreshToken,
       user,
     });
   } catch (err) {
-    console.error('Register error:', err.message);
+    console.error('Verify OTP error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -73,6 +131,11 @@ router.post('/login', async (req, res) => {
 
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: 'Invalid credentials' });
+
+    if (!user.isActive)
+      return res
+        .status(403)
+        .json({ message: 'Account not verified. Please verify OTP.' });
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch)
@@ -112,10 +175,7 @@ router.post('/refresh', (req, res) => {
     refreshTokens = refreshTokens.filter(t => t !== refreshToken);
     refreshTokens.push(newRefreshToken);
 
-    res.json({
-      token: newAccessToken,
-      refreshToken: newRefreshToken,
-    });
+    res.json({ token: newAccessToken, refreshToken: newRefreshToken });
   });
 });
 
@@ -134,7 +194,6 @@ router.post('/forgot-password', async (req, res) => {
   const user = await User.findOne({ email });
   if (!user) return res.status(404).json({ message: 'User not found' });
 
-  // Random token generate
   const resetToken = crypto.randomBytes(20).toString('hex');
   user.resetPasswordToken = resetToken;
   user.resetPasswordExpire = Date.now() + 3600000; // 1 hour
