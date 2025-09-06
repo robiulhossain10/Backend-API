@@ -1,3 +1,5 @@
+// server.js
+
 // ---------------- Load environment variables ----------------
 require('dotenv').config();
 
@@ -11,25 +13,26 @@ const helmet = require('helmet');
 // ---------------- Import routes ----------------
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
+const customerRoutes = require('./routes/customers');
+const adminRoutes = require('./routes/admin'); // Admin routes (employees, reports, audit)
 
 // ---------------- Initialize app ----------------
 const app = express();
 
 // ---------------- Middleware ----------------
-// Security middleware
 app.use(helmet());
 
 // CORS setup
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:4200', // ✅ শুধু domain দিবে, শেষে / দিও না
+    origin: process.env.CLIENT_URL || 'http://localhost:4200',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
 
-// JSON parser
+// Body parser
 app.use(express.json());
 
 // HTTP logger
@@ -38,6 +41,11 @@ app.use(morgan('dev'));
 // ---------------- Routes ----------------
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/customers', customerRoutes);
+app.use('/api/admin', adminRoutes); // ✅ Admin routes: /api/admin/employees, /api/admin/reports, etc
+
+// Serve uploads folder
+app.use('/uploads', express.static('uploads'));
 
 // Root route
 app.get('/', (req, res) => {
