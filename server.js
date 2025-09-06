@@ -6,6 +6,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const morgan = require('morgan');
+const helmet = require('helmet');
 
 // ---------------- Import routes ----------------
 const authRoutes = require('./routes/auth');
@@ -15,12 +16,16 @@ const userRoutes = require('./routes/users');
 const app = express();
 
 // ---------------- Middleware ----------------
+// Security middleware
+app.use(helmet());
 
 // CORS setup
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || '*', // নিরাপদে frontend URL ব্যবহার করুন
+    origin: process.env.CLIENT_URL || 'http://localhost:4200', // ✅ শুধু domain দিবে, শেষে / দিও না
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
 
@@ -47,7 +52,6 @@ mongoose
     console.error('❌ Mongo connection error:', err);
     process.exit(1);
   });
-
 
 // ---------------- Server ----------------
 const PORT = process.env.PORT || 5000;

@@ -29,29 +29,66 @@ const transporter = nodemailer.createTransport({
 // -------------------- REGISTER WITH OTP --------------------
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
-    if (!name || !email || !password)
+    const {
+      fullName,
+      email,
+      password,
+      phone,
+      nidNumber,
+      dob,
+      gender,
+      address,
+      accountType,
+      role,
+    } = req.body;
+
+    // Validate required fields
+    if (
+      !fullName ||
+      !email ||
+      !password ||
+      !phone ||
+      !nidNumber ||
+      !dob ||
+      !gender ||
+      !address ||
+      !accountType
+    ) {
       return res.status(400).json({ message: 'All fields are required' });
+    }
 
+    // Check if user exists
     const existingUser = await User.findOne({ email });
-    if (existingUser)
+    if (existingUser) {
       return res.status(400).json({ message: 'User already exists' });
+    }
 
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Generate 6-digit OTP
+    // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
+    const otpExpire = Date.now() + 10 * 60 * 1000; // 10 min
 
-    const user = await User.create({
-      name,
+    // Create user with correct field names
+    const user = new User({
+      fullName,
       email,
       password: hashedPassword,
+      phone,
+      nidNumber,
+      dob,
+      gender,
+      address,
+      accountType,
       role: role || 'user',
-      isActive: false, // OTP verification required
+      isActive: false,
       otp,
       otpExpire,
     });
+
+    // Save user
+    await user.save();
 
     // Send OTP email
     const message = `
@@ -73,6 +110,14 @@ router.post('/register', async (req, res) => {
     });
   } catch (err) {
     console.error('Register error:', err.message);
+    if (err.name === 'ValidationError') {
+      // Send all validation errors
+      const errors = Object.keys(err.errors).reduce((acc, key) => {
+        acc[key] = err.errors[key].message;
+        return acc;
+      }, {});
+      return res.status(400).json({ message: 'Validation failed', errors });
+    }
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -117,6 +162,46 @@ router.post('/verify-otp', async (req, res) => {
   } catch (err) {
     console.error('Verify OTP error:', err);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// -------------------- RESEND OTP --------------------
+router.post('/resend-otp', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ message: 'Email is required' });
+
+  const user = await User.findOne({ email });
+  if (!user) return res.status(404).json({ message: 'User not found' });
+
+  if (user.isActive)
+    return res.status(400).json({ message: 'User already verified' });
+
+  // Generate new OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otpExpire = Date.now() + 10 * 60 * 1000; // 10 min
+
+  user.otp = otp;
+  user.otpExpire = otpExpire;
+  await user.save();
+
+  // Send email
+  const message = `
+    <h3>OTP Verification</h3>
+    <p>Your new OTP is: <b>${otp}</b></p>
+    <p>It will expire in 10 minutes.</p>
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_USER,
+      to: user.email,
+      subject: 'Resend OTP Verification',
+      html: message,
+    });
+    res.json({ message: 'New OTP sent to your email' });
+  } catch (err) {
+    console.error('Resend OTP email error:', err);
+    res.status(500).json({ message: 'Could not send OTP' });
   }
 });
 
@@ -188,9 +273,10 @@ router.post('/logout', (req, res) => {
 
 // -------------------- FORGOT PASSWORD --------------------
 router.post('/forgot-password', async (req, res) => {
-  const { email } = req.body;
+  let { email } = req.body;
   if (!email) return res.status(400).json({ message: 'Email is required' });
 
+  email = email.toLowerCase();
   const user = await User.findOne({ email });
   if (!user) return res.status(404).json({ message: 'User not found' });
 
