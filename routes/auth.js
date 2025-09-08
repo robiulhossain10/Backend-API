@@ -7,11 +7,20 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 
 // ---------------- TOKEN HELPERS ----------------
-const generateAccessToken = userId =>
-  jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '1h' });
+const generateAccessToken = (user) =>
+  jwt.sign(
+    { id: user._id, role: user.role, email: user.email }, // payload এ role+email রাখলাম
+    process.env.JWT_SECRET,
+    { expiresIn: '1h' }
+  );
 
-const generateRefreshToken = userId =>
-  jwt.sign({ id: userId }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
+const generateRefreshToken = (user) =>
+  jwt.sign(
+    { id: user._id, role: user.role, email: user.email },
+    process.env.JWT_REFRESH_SECRET,
+    { expiresIn: '7d' }
+  );
+
 
 // In-memory refresh token store (production এ DB/Redis ব্যবহার করা উচিত)
 let refreshTokens = [];
@@ -70,7 +79,11 @@ router.post('/register', async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpire = Date.now() + 10 * 60 * 1000; // 10 min
 
-    // Create user with correct field names
+    // ✅ Validate role (default = general)
+    const validRoles = ['admin', 'manager', 'cashier', 'general'];
+    const finalRole = validRoles.includes(role) ? role : 'general';
+
+    // Create user
     const user = new User({
       fullName,
       email,
@@ -81,7 +94,7 @@ router.post('/register', async (req, res) => {
       gender,
       address,
       accountType,
-      role: role || 'user',
+      role: finalRole,
       isActive: false,
       otp,
       otpExpire,
@@ -107,11 +120,11 @@ router.post('/register', async (req, res) => {
     res.status(201).json({
       message: 'OTP sent to your email. Verify to activate account.',
       email: user.email,
+      role: user.role, // frontend এ দেখার জন্য role ফেরত দিচ্ছি
     });
   } catch (err) {
     console.error('Register error:', err.message);
     if (err.name === 'ValidationError') {
-      // Send all validation errors
       const errors = Object.keys(err.errors).reduce((acc, key) => {
         acc[key] = err.errors[key].message;
         return acc;
@@ -121,6 +134,7 @@ router.post('/register', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
 
 // -------------------- VERIFY OTP --------------------
 router.post('/verify-otp', async (req, res) => {
@@ -149,8 +163,8 @@ router.post('/verify-otp', async (req, res) => {
     await user.save();
 
     // Generate tokens
-    const token = generateAccessToken(user._id);
-    const refreshToken = generateRefreshToken(user._id);
+    const token = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
     refreshTokens.push(refreshToken);
 
     res.json({
@@ -226,21 +240,24 @@ router.post('/login', async (req, res) => {
     if (!isMatch)
       return res.status(400).json({ message: 'Invalid credentials' });
 
-    const token = generateAccessToken(user._id);
-    const refreshToken = generateRefreshToken(user._id);
+    // 🔥 এখানে পুরো user পাঠাচ্ছি যাতে role + email token এ যায়
+    const token = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
 
     refreshTokens.push(refreshToken);
 
     res.json({
+      message: 'Login successful',
       token,
       refreshToken,
-      user,
+      user, // frontend এ role check করার জন্য user send করছি
     });
   } catch (err) {
     console.error('Login error:', err.message);
     res.status(500).json({ message: 'Server error' });
   }
 });
+
 
 // -------------------- REFRESH TOKEN --------------------
 router.post('/refresh', (req, res) => {

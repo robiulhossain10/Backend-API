@@ -48,8 +48,13 @@ module.exports = function (options = { type: 'access' }) {
             .status(401)
             .json({ message: 'Token is invalid or expired' });
 
-        // Attach only user id to req.user
-        req.user = { id: decoded.id };
+        // ✅ Attach full user payload (id + role + email etc.)
+        req.user = {
+          id: decoded.id,
+          role: decoded.role, // add role from token
+          email: decoded.email, // optional, if you put in token
+        };
+
         next();
       });
     } catch (err) {

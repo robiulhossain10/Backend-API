@@ -91,10 +91,10 @@ router.get('/:id', auth(), async (req, res) => {
 // -------------------- Update user by ID --------------------
 router.put('/:id', auth(), async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { fullName, email, password, phone, address } = req.body;
 
-    if (!name || !email) {
-      return res.status(400).json({ message: 'Name and email are required' });
+    if (!fullName || !email) {
+      return res.status(400).json({ message: 'Full name and email are required' });
     }
 
     const existingUser = await User.findOne({
@@ -105,7 +105,8 @@ router.put('/:id', auth(), async (req, res) => {
       return res.status(400).json({ message: 'Email already in use' });
     }
 
-    const updateData = { name, email };
+    const updateData = { fullName, email, phone, address };
+
     if (password && password.trim() !== '') {
       const salt = await bcrypt.genSalt(10);
       updateData.password = await bcrypt.hash(password, salt);
@@ -124,6 +125,7 @@ router.put('/:id', auth(), async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
 
 // -------------------- Delete user by ID --------------------
 router.delete('/:id', auth(), async (req, res) => {
