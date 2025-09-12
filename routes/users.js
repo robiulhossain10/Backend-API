@@ -1,141 +1,151 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
-const auth = require('../middleware/auth');
 const bcrypt = require('bcryptjs');
 
-// -------------------- Get all users (protected) --------------------
-router.get('/', auth(), async (req, res) => {
+// =================== Get All Users ===================
+router.get('/', async (req, res) => {
   try {
-    const users = await User.find().select('-password'); // remove passwords
-    if (!users || users.length === 0) {
-      return res.status(404).json({ message: 'No users found' });
-    }
+    const users = await User.find().select('-password');
     res.json(users);
   } catch (err) {
-    console.error('Get users error:', err.message);
-    res.status(500).json({ message: 'Could not load users' });
+    res.status(500).json({ message: 'Server error while fetching users' });
   }
 });
 
-// -------------------- Get logged-in user's profile --------------------
-router.get('/me', auth(), async (req, res) => {
+// =================== Add New User ===================
+router.post('/create', async (req, res) => {
   try {
-    console.log('REQ USER:', req.user); // debug
-    if (!req.user || !req.user.id) {
-      return res.status(401).json({ message: 'Unauthorized: No user id' });
-    }
-
-    const user = await User.findById(req.user.id).select('-password');
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json(user);
-  } catch (err) {
-    console.error('Get profile error:', err.message);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// -------------------- Update logged-in user's profile --------------------
-router.put('/me', auth(), async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-
-    if (!req.user || !req.user.id) {
-      return res.status(401).json({ message: 'Unauthorized: No user id' });
-    }
-
-    if (!name || !email) {
-      return res.status(400).json({ message: 'Name and email are required' });
-    }
-
-    const existingUser = await User.findOne({
+    const {
+      fullName,
       email,
-      _id: { $ne: req.user.id },
-    });
-    if (existingUser) {
-      return res.status(400).json({ message: 'Email already in use' });
+      phone,
+      nidNumber,
+      dob,
+      gender,
+      address,
+      accountType,
+      password,
+      role,
+      isActive,
+    } = req.body;
+
+    if (
+      !fullName ||
+      !email ||
+      !phone ||
+      !nidNumber ||
+      !dob ||
+      !gender ||
+      !address ||
+      !accountType ||
+      !password
+    ) {
+      return res
+        .status(400)
+        .json({ message: 'All required fields must be filled' });
     }
 
-    const updateData = { name, email };
-    if (password && password.trim() !== '') {
-      const salt = await bcrypt.genSalt(10);
-      updateData.password = await bcrypt.hash(password, salt);
+    const existing = await User.findOne({ email });
+    if (existing) {
+      return res.status(400).json({ message: 'Email already exists' });
     }
 
-    const user = await User.findByIdAndUpdate(req.user.id, updateData, {
-      new: true,
-      runValidators: true,
-      select: '-password',
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const newUser = new User({
+      fullName,
+      email,
+      phone,
+      nidNumber,
+      dob,
+      gender,
+      address,
+      accountType,
+      password: hashedPassword,
+      role: role || 'general',
+      isActive: isActive ?? false,
     });
 
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json(user);
+    await newUser.save();
+    res.status(201).json(newUser);
   } catch (err) {
-    console.error('Update profile error:', err.message);
-    res.status(500).json({ message: 'Server error' });
+    res
+      .status(500)
+      .json({ message: 'Error creating user', error: err.message });
   }
 });
 
-// -------------------- Get user by ID --------------------
-router.get('/:id', auth(), async (req, res) => {
+// =================== Get User by ID ===================
+router.get('/:id', async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
   } catch (err) {
-    console.error('Get user by ID error:', err.message);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Error fetching user' });
   }
 });
 
-// -------------------- Update user by ID --------------------
-router.put('/:id', auth(), async (req, res) => {
+// =================== Update User by ID ===================
+router.put('/:id', async (req, res) => {
   try {
-    const { fullName, email, password, phone, address } = req.body;
-
-    if (!fullName || !email) {
-      return res.status(400).json({ message: 'Full name and email are required' });
-    }
-
-    const existingUser = await User.findOne({
+    const {
+      fullName,
       email,
-      _id: { $ne: req.params.id },
-    });
-    if (existingUser) {
-      return res.status(400).json({ message: 'Email already in use' });
-    }
+      phone,
+      nidNumber,
+      dob,
+      gender,
+      address,
+      accountType,
+      password,
+      role,
+      isActive,
+    } = req.body;
 
-    const updateData = { fullName, email, phone, address };
+    const updateData = {
+      fullName,
+      email,
+      phone,
+      nidNumber,
+      dob,
+      gender,
+      address,
+      accountType,
+      role,
+      isActive,
+    };
 
     if (password && password.trim() !== '') {
-      const salt = await bcrypt.genSalt(10);
-      updateData.password = await bcrypt.hash(password, salt);
+      updateData.password = await bcrypt.hash(password, 10);
     }
 
-    const user = await User.findByIdAndUpdate(req.params.id, updateData, {
-      new: true,
-      runValidators: true,
-      select: '-password',
-    });
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true, select: '-password' }
+    );
 
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json(user);
+    if (!updatedUser)
+      return res.status(404).json({ message: 'User not found' });
+
+    res.json(updatedUser);
   } catch (err) {
-    console.error('Update user by ID error:', err.message);
-    res.status(500).json({ message: 'Server error' });
+    res
+      .status(500)
+      .json({ message: 'Error updating user', error: err.message });
   }
 });
 
-
-// -------------------- Delete user by ID --------------------
-router.delete('/:id', auth(), async (req, res) => {
+// =================== Delete User by ID ===================
+router.delete('/:id', async (req, res) => {
   try {
-    const user = await User.findByIdAndDelete(req.params.id);
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    const deleted = await User.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: 'User not found' });
     res.json({ message: 'User deleted successfully' });
   } catch (err) {
-    console.error('Delete user error:', err.message);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Error deleting user' });
   }
 });
 

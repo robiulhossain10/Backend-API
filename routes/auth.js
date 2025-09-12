@@ -7,20 +7,19 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 
 // ---------------- TOKEN HELPERS ----------------
-const generateAccessToken = (user) =>
+const generateAccessToken = user =>
   jwt.sign(
     { id: user._id, role: user.role, email: user.email }, // payload এ role+email রাখলাম
     process.env.JWT_SECRET,
     { expiresIn: '1h' }
   );
 
-const generateRefreshToken = (user) =>
+const generateRefreshToken = user =>
   jwt.sign(
     { id: user._id, role: user.role, email: user.email },
     process.env.JWT_REFRESH_SECRET,
     { expiresIn: '7d' }
   );
-
 
 // In-memory refresh token store (production এ DB/Redis ব্যবহার করা উচিত)
 let refreshTokens = [];
@@ -135,7 +134,6 @@ router.post('/register', async (req, res) => {
   }
 });
 
-
 // -------------------- VERIFY OTP --------------------
 router.post('/verify-otp', async (req, res) => {
   try {
@@ -234,7 +232,7 @@ router.post('/login', async (req, res) => {
     if (!user.isActive)
       return res
         .status(403)
-        .json({ message: 'Account not verified. Please verify OTP.' });
+        .json({ message: 'Account not verified. Please Contact Admin' });
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch)
@@ -257,7 +255,6 @@ router.post('/login', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-
 
 // -------------------- REFRESH TOKEN --------------------
 router.post('/refresh', (req, res) => {
