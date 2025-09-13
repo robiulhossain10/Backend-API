@@ -139,43 +139,66 @@ router.post('/verify-otp', async (req, res) => {
   try {
     const { email, otp } = req.body;
 
+    // ✅ Validate request body
     if (!email || !otp) {
       return res.status(400).json({ message: 'Email and OTP required' });
     }
 
+    // ✅ Find user
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    if (user.isActive)
+    // ✅ Check if already verified
+    if (user.isActive) {
       return res.status(400).json({ message: 'User already verified' });
+    }
 
-    if (user.otp !== otp)
+    // ✅ Compare OTP (string-safe)
+    if (!user.otp || user.otp.toString() !== otp.toString()) {
       return res.status(400).json({ message: 'Invalid OTP' });
-    if (user.otpExpire < Date.now())
-      return res.status(400).json({ message: 'OTP expired' });
+    }
 
-    // OTP valid, activate user
+    // ✅ Check OTP expiration
+    if (!user.otpExpire || user.otpExpire < Date.now()) {
+      return res.status(400).json({ message: 'OTP expired' });
+    }
+
+    // ✅ OTP valid → activate user
     user.isActive = true;
     user.otp = undefined;
     user.otpExpire = undefined;
     await user.save();
 
-    // Generate tokens
-    const token = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
+    // ✅ Generate JWT tokens
+    const token = generateAccessToken({
+      id: user._id,
+      role: user.role,
+      email: user.email,
+    });
+    const refreshToken = generateRefreshToken({
+      id: user._id,
+      role: user.role,
+      email: user.email,
+    });
     refreshTokens.push(refreshToken);
 
     res.json({
       message: 'Account verified successfully',
       token,
       refreshToken,
-      user,
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+      },
     });
   } catch (err) {
     console.error('Verify OTP error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
+
 
 // -------------------- RESEND OTP --------------------
 router.post('/resend-otp', async (req, res) => {

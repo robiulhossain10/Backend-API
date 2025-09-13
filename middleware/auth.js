@@ -11,10 +11,8 @@ module.exports = function (options = { type: 'access' }) {
 
       // -------------------- Token Extraction --------------------
       if (options.type === 'refresh') {
-        // Refresh token usually in header 'x-refresh-token'
-        token = req.headers['x-refresh-token'];
+        token = req.headers['x-refresh-token']; // refresh token usually in this header
       } else {
-        // Access token in Authorization header
         const authHeader =
           req.headers['authorization'] || req.headers['Authorization'];
         if (!authHeader)
@@ -23,7 +21,7 @@ module.exports = function (options = { type: 'access' }) {
             .json({ message: 'No token provided, authorization denied' });
 
         const parts = authHeader.split(' ');
-        if (parts.length !== 2 || parts[0] !== 'Bearer')
+        if (parts.length !== 2 || parts[0].toLowerCase() !== 'bearer')
           return res
             .status(401)
             .json({ message: 'Invalid authorization format' });
@@ -42,19 +40,21 @@ module.exports = function (options = { type: 'access' }) {
           ? process.env.JWT_REFRESH_SECRET
           : process.env.JWT_SECRET;
 
+      if (!secret) {
+        console.error('JWT secret not defined in environment');
+        return res.status(500).json({ message: 'Server misconfiguration' });
+      }
+
       jwt.verify(token, secret, (err, decoded) => {
-        if (err)
+        if (err) {
+          console.error('JWT verification failed:', err.message);
           return res
             .status(401)
             .json({ message: 'Token is invalid or expired' });
+        }
 
-        // ✅ Attach full user payload (id + role + email etc.)
-        req.user = {
-          id: decoded.id,
-          role: decoded.role, // add role from token
-          email: decoded.email, // optional, if you put in token
-        };
-
+        // ✅ Attach user payload to request
+        req.user = decoded; // decoded should contain id, role, email, etc.
         next();
       });
     } catch (err) {
