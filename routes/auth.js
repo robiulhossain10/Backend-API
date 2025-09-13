@@ -199,7 +199,6 @@ router.post('/verify-otp', async (req, res) => {
   }
 });
 
-
 // -------------------- RESEND OTP --------------------
 router.post('/resend-otp', async (req, res) => {
   const { email } = req.body;
@@ -322,7 +321,7 @@ router.post('/forgot-password', async (req, res) => {
   user.resetPasswordExpire = Date.now() + 3600000; // 1 hour
   await user.save();
 
-  const resetUrl = `${process.env.FRONTEND_URL}/auth/reset-password/${resetToken}`;
+  const resetUrl = `${process.env.CLIENT_URL}/auth/reset-password/${resetToken}`;
 
   const message = `
     <h3>Password Reset Request</h3>
