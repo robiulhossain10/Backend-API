@@ -27,20 +27,18 @@ This backend powers features like user authentication, customer management, tran
 ---
 
 ## 📂 Project Structure
-── routes/
-│ ├── auth.js
-│ ├── users.js
-│ ├── customers.js
-│ ├── admin.js
-│ ├── transactions.js
-│ └── loan.routes.js
-├── uploads/ # Static uploaded files
-├── server.js # Entry point
-├── .env # Environment variables
+├── routes/
+│   ├── auth.js
+│   ├── users.js
+│   ├── customers.js
+│   ├── admin.js
+│   ├── transactions.js
+│   └── loan.routes.js
+├── uploads/         # Static uploaded files
+├── server.js        # Entry point
+├── .env             # Environment variables
 ├── package.json
 
-
----
 
 ## ⚙️ Installation & Setup
 
